@@ -1,0 +1,20 @@
+[package]
+name = "v8"
+version = "0.1.0"
+edition = "2021"
+authors = ["v8-rust-engine"]
+description = "A V8-like JavaScript engine implementation in Rust"
+
+[dependencies]
+# Parser and lexer dependencies
+nom = "7.1"
+thiserror = "1.0"
+
+# Utilities
+unicode-xid = "0.2"  # For JavaScript identifier validation
+
+[dev-dependencies]
+# Testing utilities
+criterion = { version = "0.5", features = ["html_reports"] }
+assert_matches = "1.5"
+proptest = "1.0"
