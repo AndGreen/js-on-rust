@@ -26,7 +26,7 @@ fn main() -> Result<()> {
 
 fn repl_mode() -> Result<()> {
     println!("V8-like JavaScript Engine v{}", v8::VERSION);
-    println!("Type 'exit' to quit");
+    println!("Type 'exit' or '.exit' to quit, '.help' for help");
     
     let mut engine = Engine::new();
     
@@ -36,23 +36,43 @@ fn repl_mode() -> Result<()> {
         io::stdout().flush().unwrap();
         
         let mut input = String::new();
-        io::stdin().read_line(&mut input).expect("Failed to read input");
-        
-        let input = input.trim();
-        if input == "exit" {
-            break;
-        }
-        
-        if input.is_empty() {
-            continue;
-        }
-        
-        match engine.execute(input) {
-            Ok(()) => {
-                // Success - result already printed by engine
-            },
+        match io::stdin().read_line(&mut input) {
+            Ok(0) => {
+                // EOF (Ctrl+D) - graceful exit
+                println!("\nGoodbye!");
+                break;
+            }
+            Ok(_) => {
+                // Successfully read input
+                let input = input.trim();
+                
+                // Handle REPL commands
+                match input {
+                    "exit" | ".exit" => break,
+                    ".help" => {
+                        println!("Available commands:");
+                        println!("  .exit   - Exit the REPL");
+                        println!("  .help   - Show this help message");
+                        println!("  <expr>  - Evaluate JavaScript expression");
+                        continue;
+                    }
+                    "" => continue,
+                    _ => {
+                        // Execute JavaScript code
+                        match engine.execute(input) {
+                            Ok(()) => {
+                                // Success - result already printed by engine
+                            },
+                            Err(e) => {
+                                eprintln!("Error: {}", e);
+                            }
+                        }
+                    }
+                }
+            }
             Err(e) => {
-                eprintln!("{}", e);
+                eprintln!("Error reading input: {}", e);
+                break;
             }
         }
     }

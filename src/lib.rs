@@ -30,19 +30,24 @@ impl Engine {
     /// Execute JavaScript source code
     pub fn execute(&mut self, source: &str) -> Result<()> {
         // TODO: Implement execution pipeline:
-        // 1. Parse source to AST
+        // 1. Parse source to AST ✓
         // 2. Compile AST to bytecode  
         // 3. Execute bytecode in interpreter
         // 4. Profile and JIT compile hot functions
         
+        // Step 1: Tokenize the source code
         let mut lexer = Lexer::new(source);
         let tokens = lexer.tokenize()?;
         
+        // Step 2: Parse tokens into AST
         let mut parser = Parser::new(tokens);
-        let _ast = parser.parse()?;
+        let ast = parser.parse()?;
+        
+        // Display the parsed AST for demonstration
+        println!("Successfully parsed JavaScript:");
+        println!("{}", ast);
         
         // TODO: Continue with bytecode generation and execution
-        println!("Successfully parsed source code");
         Ok(())
     }
 }
