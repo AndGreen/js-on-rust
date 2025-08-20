@@ -125,7 +125,7 @@ impl<'a> Lexer<'a> {
         
         let end = self.current;
         let span = self.make_span(start_pos, end);
-        let text = self.source[start_pos..end].to_string();
+        let text = self.safe_slice(start_pos, end);
         
         Ok(Token::new(kind, span, text))
     }
@@ -170,7 +170,7 @@ impl<'a> Lexer<'a> {
         }
         
         // Parse the number
-        let number_text = &self.source[self.token_start..self.current];
+        let number_text = self.safe_slice(self.token_start, self.current);
         
         match number_text.parse::<f64>() {
             Ok(value) => Ok(TokenKind::Number(value)),
@@ -283,10 +283,10 @@ impl<'a> Lexer<'a> {
             self.advance();
         }
         
-        let text = &self.source[self.token_start..self.current];
+        let text = self.safe_slice(self.token_start, self.current);
         
         // Check if it's a keyword
-        if let Some(keyword) = Keyword::from_str(text) {
+        if let Some(keyword) = Keyword::from_str(&text) {
             match keyword {
                 Keyword::True => TokenKind::Boolean(true),
                 Keyword::False => TokenKind::Boolean(false),
@@ -295,7 +295,7 @@ impl<'a> Lexer<'a> {
                 _ => TokenKind::Keyword(keyword),
             }
         } else {
-            TokenKind::Identifier(text.to_string())
+            TokenKind::Identifier(text)
         }
     }
     
@@ -369,17 +369,84 @@ impl<'a> Lexer<'a> {
         if self.is_at_end() {
             '\0'
         } else {
-            self.source.chars().nth(self.current).unwrap_or('\0')
+            self.char_at_byte_pos(self.current)
         }
     }
     
     /// Peek at the next character
     fn peek(&self) -> Option<char> {
-        if self.current + 1 >= self.source.len() {
+        let next_pos = self.current + self.current_char().len_utf8();
+        if next_pos >= self.source.len() {
             None
         } else {
-            self.source.chars().nth(self.current + 1)
+            Some(self.char_at_byte_pos(next_pos))
         }
+    }
+    
+    /// Get character at specific byte position
+    fn char_at_byte_pos(&self, byte_pos: usize) -> char {
+        if byte_pos >= self.source.len() {
+            return '\0';
+        }
+        
+        // Find the character that starts at or contains this byte position
+        let mut current_byte = 0;
+        for ch in self.source.chars() {
+            if current_byte == byte_pos {
+                return ch;
+            }
+            current_byte += ch.len_utf8();
+            if current_byte > byte_pos {
+                // We're in the middle of a multi-byte character
+                // This shouldn't happen in a well-formed lexer
+                return '\0';
+            }
+        }
+        '\0'
+    }
+    
+    /// Safely slice string respecting UTF-8 character boundaries
+    fn safe_slice(&self, start: usize, end: usize) -> String {
+        if start >= self.source.len() {
+            return String::new();
+        }
+        
+        let end = end.min(self.source.len());
+        
+        // Find the actual character boundaries
+        let mut current_byte = 0;
+        let mut start_char_pos = 0;
+        let mut end_char_pos = 0;
+        let mut char_count = 0;
+        
+        for ch in self.source.chars() {
+            if current_byte == start {
+                start_char_pos = char_count;
+            }
+            if current_byte == end {
+                end_char_pos = char_count;
+                break;
+            }
+            current_byte += ch.len_utf8();
+            char_count += 1;
+            
+            // If we've passed the end position, use this character boundary
+            if current_byte >= end {
+                end_char_pos = char_count;
+                break;
+            }
+        }
+        
+        // If we didn't find the exact end, use the last character
+        if current_byte < end {
+            end_char_pos = char_count;
+        }
+        
+        // Now we can safely slice using character positions
+        self.source.chars()
+            .skip(start_char_pos)
+            .take(end_char_pos - start_char_pos)
+            .collect()
     }
     
     /// Advance to the next character
