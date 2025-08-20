@@ -5,7 +5,6 @@
 
 pub mod ast;
 pub mod parser;
-pub mod pratt;
 
 #[cfg(test)]
 mod tests;

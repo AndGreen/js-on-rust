@@ -1,4 +1,4 @@
-use v8::{Engine, Result};
+use v8::{Engine, Result, Lexer};
 use std::env;
 use std::fs;
 
@@ -11,17 +11,83 @@ fn main() -> Result<()> {
             repl_mode()
         },
         2 => {
-            // Execute file
+            // Check if we should debug tokenization
             let filename = &args[1];
-            execute_file(filename)
+            if filename == "--debug-tokens" {
+                debug_tokens_mode()
+            } else {
+                execute_file(filename)
+            }
+        },
+        3 => {
+            if &args[1] == "--debug-tokens" {
+                let filename = &args[2];
+                debug_tokens_for_file(filename)
+            } else {
+                eprintln!("Usage: {} [file.js] or {} --debug-tokens [file.js]", args[0], args[0]);
+                std::process::exit(1);
+            }
         },
         _ => {
             eprintln!("Usage: {} [file.js]", args[0]);
             eprintln!("  {} - Start REPL", args[0]);
             eprintln!("  {} file.js - Execute JavaScript file", args[0]);
+            eprintln!("  {} --debug-tokens file.js - Show tokens for file", args[0]);
             std::process::exit(1);
         }
     }
+}
+
+fn debug_tokens_mode() -> Result<()> {
+    println!("Enter JavaScript code to see tokens (Ctrl+D to exit):");
+    
+    loop {
+        print!("tokens> ");
+        use std::io::{self, Write};
+        io::stdout().flush().unwrap();
+        
+        let mut input = String::new();
+        match io::stdin().read_line(&mut input) {
+            Ok(0) => break, // EOF
+            Ok(_) => {
+                let input = input.trim();
+                if input.is_empty() { continue; }
+                
+                let mut lexer = Lexer::new(input);
+                match lexer.tokenize() {
+                    Ok(tokens) => {
+                        for token in tokens {
+                            println!("{:?}", token);
+                        }
+                    },
+                    Err(e) => eprintln!("Lexer error: {}", e),
+                }
+            },
+            Err(e) => {
+                eprintln!("Error reading input: {}", e);
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn debug_tokens_for_file(filename: &str) -> Result<()> {
+    let source = fs::read_to_string(filename)?;
+    println!("Tokens for file '{}':", filename);
+    println!("Source: {}", source);
+    println!();
+    
+    let mut lexer = Lexer::new(&source);
+    match lexer.tokenize() {
+        Ok(tokens) => {
+            for (i, token) in tokens.iter().enumerate() {
+                println!("{}: {:?}", i, token);
+            }
+        },
+        Err(e) => eprintln!("Lexer error: {}", e),
+    }
+    Ok(())
 }
 
 fn repl_mode() -> Result<()> {

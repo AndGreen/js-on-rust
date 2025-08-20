@@ -61,6 +61,11 @@ impl Parser {
             TokenKind::Keyword(Keyword::Let) => self.parse_let_declaration(),
             TokenKind::Keyword(Keyword::Var) => self.parse_var_declaration(),
             TokenKind::Keyword(Keyword::Const) => self.parse_const_declaration(),
+            TokenKind::Keyword(Keyword::Function) => self.parse_function_declaration(),
+            TokenKind::Keyword(Keyword::If) => self.parse_if_statement(),
+            TokenKind::Keyword(Keyword::While) => self.parse_while_statement(),
+            TokenKind::Keyword(Keyword::Return) => self.parse_return_statement(),
+            TokenKind::LeftBrace => self.parse_block_statement(),
             _ => self.parse_expression_statement(),
         }
     }
@@ -134,6 +139,114 @@ impl Parser {
         })
     }
     
+    /// Parse function declaration: `function name(params) { body }`
+    fn parse_function_declaration(&mut self) -> Result<Stmt> {
+        let start_span = self.peek().span;
+        self.advance(); // consume 'function'
+        
+        let name = self.consume_identifier("Expected function name")?;
+        
+        self.consume(&TokenKind::LeftParen, "Expected '(' after function name")?;
+        let mut params = Vec::new();
+        
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            params.push(self.consume_identifier("Expected parameter name")?);
+            if !self.check(&TokenKind::RightParen) {
+                self.consume(&TokenKind::Comma, "Expected ',' between parameters")?;
+            }
+        }
+        
+        self.consume(&TokenKind::RightParen, "Expected ')' after parameters")?;
+        
+        self.consume(&TokenKind::LeftBrace, "Expected '{' to start function body")?;
+        let body = self.parse_block_statement_body()?;
+        
+        Ok(Stmt::FunctionDecl { name, params, body, span: start_span })
+    }
+    
+    /// Parse if statement: `if (test) then_stmt else else_stmt`
+    fn parse_if_statement(&mut self) -> Result<Stmt> {
+        let start_span = self.peek().span;
+        self.advance(); // consume 'if'
+        
+        self.consume(&TokenKind::LeftParen, "Expected '(' after 'if'")?;
+        let test = self.parse_expression()?;
+        self.consume(&TokenKind::RightParen, "Expected ')' after if condition")?;
+        
+        let then_stmt = Box::new(self.parse_statement()?);
+        
+        let else_stmt = if self.match_token(&TokenKind::Keyword(Keyword::Else)) {
+            Some(Box::new(self.parse_statement()?))
+        } else {
+            None
+        };
+        
+        Ok(Stmt::If { test, then_stmt, else_stmt, span: start_span })
+    }
+    
+    /// Parse while statement: `while (test) body`
+    fn parse_while_statement(&mut self) -> Result<Stmt> {
+        let start_span = self.peek().span;
+        self.advance(); // consume 'while'
+        
+        self.consume(&TokenKind::LeftParen, "Expected '(' after 'while'")?;
+        let test = self.parse_expression()?;
+        self.consume(&TokenKind::RightParen, "Expected ')' after while condition")?;
+        
+        let body = Box::new(self.parse_statement()?);
+        
+        Ok(Stmt::While { test, body, span: start_span })
+    }
+    
+    /// Parse return statement: `return expr?;`
+    fn parse_return_statement(&mut self) -> Result<Stmt> {
+        let start_span = self.peek().span;
+        self.advance(); // consume 'return'
+        
+        let value = if matches!(self.peek().kind, TokenKind::Semicolon | TokenKind::Newline | TokenKind::Eof | TokenKind::RightBrace) {
+            None
+        } else {
+            Some(self.parse_expression()?)
+        };
+        
+        self.consume_semicolon_or_newline();
+        
+        Ok(Stmt::Return { value, span: start_span })
+    }
+    
+    /// Parse block statement: `{ statements }`
+    fn parse_block_statement(&mut self) -> Result<Stmt> {
+        let start_span = self.peek().span;
+        self.consume(&TokenKind::LeftBrace, "Expected '{'")?;
+        
+        let statements = self.parse_block_statement_body()?;
+        
+        Ok(Stmt::Block { statements, span: start_span })
+    }
+    
+    /// Parse the body of a block (statements between braces)
+    fn parse_block_statement_body(&mut self) -> Result<Vec<Stmt>> {
+        let mut statements = Vec::new();
+        
+        while !self.check(&TokenKind::RightBrace) && !self.is_at_end() {
+            // Skip newlines and whitespace
+            if matches!(self.peek().kind, TokenKind::Newline) {
+                self.advance();
+                continue;
+            }
+            
+            // If we hit a closing brace, break out of the loop
+            if self.check(&TokenKind::RightBrace) {
+                break;
+            }
+            
+            statements.push(self.parse_statement()?);
+        }
+        
+        self.consume(&TokenKind::RightBrace, "Expected '}'")?;
+        Ok(statements)
+    }
+    
     /// Parse expression statement: `expr;`
     fn parse_expression_statement(&mut self) -> Result<Stmt> {
         let expr = self.parse_expression()?;
@@ -143,7 +256,25 @@ impl Parser {
     
     /// Parse expression using Pratt parsing
     fn parse_expression(&mut self) -> Result<Expr> {
-        self.parse_precedence(Precedence::Assignment)
+        self.parse_assignment()
+    }
+    
+    /// Parse assignment expressions (right-associative)
+    fn parse_assignment(&mut self) -> Result<Expr> {
+        let expr = self.parse_precedence(Precedence::Or)?;
+        
+        if self.match_token(&TokenKind::Equal) {
+            let start_span = self.previous().span;
+            let right = self.parse_assignment()?; // Right associative
+            
+            return Ok(Expr::Assignment {
+                left: Box::new(expr),
+                right: Box::new(right),
+                span: start_span,
+            });
+        }
+        
+        Ok(expr)
     }
     
     /// Parse expression with given minimum precedence
@@ -214,7 +345,7 @@ impl Parser {
     fn parse_primary(&mut self) -> Result<Expr> {
         let token = self.advance();
         
-        match &token.kind {
+        let mut expr = match &token.kind {
             TokenKind::Number(n) => Ok(Expr::Literal(Literal::Number(*n))),
             TokenKind::String(s) => Ok(Expr::Literal(Literal::String(s.clone()))),
             TokenKind::Boolean(b) => Ok(Expr::Literal(Literal::Boolean(*b))),
@@ -237,13 +368,78 @@ impl Parser {
                 format!("Unexpected token: {}", token.kind),
                 token.span,
             )),
+        }?;
+        
+        // Handle postfix expressions (calls, member access)
+        expr = self.parse_postfix(expr)?;
+        
+        Ok(expr)
+    }
+    
+    /// Parse postfix expressions (calls, member access)
+    fn parse_postfix(&mut self, mut expr: Expr) -> Result<Expr> {
+        while !self.is_at_end() {
+            match &self.peek().kind {
+                TokenKind::LeftParen => {
+                    // Function call: func(args)
+                    let start_span = self.peek().span;
+                    self.advance(); // consume '('
+                    
+                    let mut args = Vec::new();
+                    while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+                        args.push(self.parse_expression()?);
+                        if !self.check(&TokenKind::RightParen) {
+                            self.consume(&TokenKind::Comma, "Expected ',' between arguments")?;
+                        }
+                    }
+                    
+                    self.consume(&TokenKind::RightParen, "Expected ')' after arguments")?;
+                    
+                    expr = Expr::Call {
+                        callee: Box::new(expr),
+                        args,
+                        span: start_span,
+                    };
+                }
+                TokenKind::Dot => {
+                    // Member access: obj.prop
+                    let start_span = self.peek().span;
+                    self.advance(); // consume '.'
+                    let property_name = self.consume_identifier("Expected property name after '.'")?;
+                    
+                    expr = Expr::Member {
+                        object: Box::new(expr),
+                        property: Box::new(Expr::Identifier { 
+                            name: property_name, 
+                            span: start_span 
+                        }),
+                        computed: false,
+                        span: start_span,
+                    };
+                }
+                TokenKind::LeftBracket => {
+                    // Computed member access: obj[key]
+                    let start_span = self.peek().span;
+                    self.advance(); // consume '['
+                    let property = self.parse_expression()?;
+                    self.consume(&TokenKind::RightBracket, "Expected ']'")?;
+                    
+                    expr = Expr::Member {
+                        object: Box::new(expr),
+                        property: Box::new(property),
+                        computed: true,
+                        span: start_span,
+                    };
+                }
+                _ => break,
+            }
         }
+        Ok(expr)
     }
     
     /// Get precedence for a token
     fn get_precedence(&self, token: &TokenKind) -> Precedence {
         match token {
-            TokenKind::Equal => Precedence::Assignment,
             TokenKind::PipePipe => Precedence::Or,
             TokenKind::AmpAmp => Precedence::And,
             TokenKind::EqualEqual | TokenKind::BangEqual |
@@ -360,8 +556,11 @@ impl Parser {
     
     /// Consume semicolon or newline (both are valid statement terminators)
     fn consume_semicolon_or_newline(&mut self) {
-        if matches!(self.peek().kind, TokenKind::Semicolon | TokenKind::Newline | TokenKind::Eof) {
-            self.advance();
+        if matches!(self.peek().kind, TokenKind::Semicolon | TokenKind::Newline | TokenKind::Eof | TokenKind::RightBrace) {
+            // Only consume if it's not a closing brace (which ends the block)
+            if !matches!(self.peek().kind, TokenKind::RightBrace) {
+                self.advance();
+            }
         }
     }
 }

@@ -300,6 +300,7 @@ impl<'a> Lexer<'a> {
     }
     
     /// Check if a character can start an identifier
+    #[allow(dead_code)]
     fn is_identifier_start(&self, c: char) -> bool {
         c.is_alphabetic() || c == '_' || c == '$' || unicode_xid::UnicodeXID::is_xid_start(c)
     }
@@ -400,6 +401,7 @@ impl<'a> Lexer<'a> {
     }
     
     /// Get the start position of the current token
+    #[allow(dead_code)]
     fn start_position(&self) -> usize {
         // This is a simplification - in a real implementation we'd track
         // the byte position more carefully

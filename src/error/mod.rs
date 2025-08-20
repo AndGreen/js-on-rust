@@ -1,7 +1,5 @@
 //! Error handling and diagnostics for the JavaScript engine
 
-use std::fmt;
-
 pub mod diagnostic;
 
 pub use diagnostic::Diagnostic;
