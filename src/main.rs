@@ -1,4 +1,4 @@
-use v8::{Engine, Result, Lexer};
+use v8::{Engine, Result, Lexer, Parser, ast::PrettyPrint};
 use std::env;
 use std::fs;
 
@@ -11,10 +11,12 @@ fn main() -> Result<()> {
             repl_mode()
         },
         2 => {
-            // Check if we should debug tokenization
+            // Check if we should debug tokenization or AST
             let filename = &args[1];
             if filename == "--debug-tokens" {
                 debug_tokens_mode()
+            } else if filename == "--debug-ast" {
+                debug_ast_mode()
             } else {
                 execute_file(filename)
             }
@@ -23,8 +25,11 @@ fn main() -> Result<()> {
             if &args[1] == "--debug-tokens" {
                 let filename = &args[2];
                 debug_tokens_for_file(filename)
+            } else if &args[1] == "--debug-ast" {
+                let filename = &args[2];
+                debug_ast_for_file(filename)
             } else {
-                eprintln!("Usage: {} [file.js] or {} --debug-tokens [file.js]", args[0], args[0]);
+                eprintln!("Usage: {} [file.js] or {} --debug-tokens [file.js] or {} --debug-ast [file.js]", args[0], args[0], args[0]);
                 std::process::exit(1);
             }
         },
@@ -33,6 +38,7 @@ fn main() -> Result<()> {
             eprintln!("  {} - Start REPL", args[0]);
             eprintln!("  {} file.js - Execute JavaScript file", args[0]);
             eprintln!("  {} --debug-tokens file.js - Show tokens for file", args[0]);
+            eprintln!("  {} --debug-ast file.js - Show detailed AST tree for file", args[0]);
             std::process::exit(1);
         }
     }
@@ -150,4 +156,64 @@ fn execute_file(filename: &str) -> Result<()> {
     let source = fs::read_to_string(filename)?;
     let mut engine = Engine::new();
     engine.execute(&source)
+}
+
+fn debug_ast_mode() -> Result<()> {
+    println!("Enter JavaScript code to see AST tree (Ctrl+D to exit):");
+    
+    loop {
+        print!("ast> ");
+        use std::io::{self, Write};
+        io::stdout().flush().unwrap();
+        
+        let mut input = String::new();
+        match io::stdin().read_line(&mut input) {
+            Ok(0) => break, // EOF
+            Ok(_) => {
+                let input = input.trim();
+                if input.is_empty() { continue; }
+                
+                let mut lexer = Lexer::new(input);
+                match lexer.tokenize() {
+                    Ok(tokens) => {
+                        let mut parser = Parser::new(tokens);
+                        match parser.parse() {
+                            Ok(ast) => {
+                                println!("{}", ast.pretty_print(0));
+                            },
+                            Err(e) => eprintln!("Parser error: {}", e),
+                        }
+                    },
+                    Err(e) => eprintln!("Lexer error: {}", e),
+                }
+            },
+            Err(e) => {
+                eprintln!("Error reading input: {}", e);
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn debug_ast_for_file(filename: &str) -> Result<()> {
+    let source = fs::read_to_string(filename)?;
+    println!("AST tree for file '{}':", filename);
+    println!("Source: {}", source);
+    println!();
+    
+    let mut lexer = Lexer::new(&source);
+    match lexer.tokenize() {
+        Ok(tokens) => {
+            let mut parser = Parser::new(tokens);
+            match parser.parse() {
+                Ok(ast) => {
+                    println!("{}", ast.pretty_print(0));
+                },
+                Err(e) => eprintln!("Parser error: {}", e),
+            }
+        },
+        Err(e) => eprintln!("Lexer error: {}", e),
+    }
+    Ok(())
 }

@@ -14,17 +14,30 @@ pub mod parser;
 pub use error::{Error, Result};
 pub use lexer::{Lexer, Token, TokenKind};
 pub use parser::{Parser, ast};
+use ast::PrettyPrint;
 
 /// Engine version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Engine entry point
-pub struct Engine;
+pub struct Engine {
+    /// Enable detailed AST debugging output
+    pub ast_debug_mode: bool,
+}
 
 impl Engine {
     /// Create a new engine instance
     pub fn new() -> Self {
-        Self
+        Self {
+            ast_debug_mode: false,
+        }
+    }
+    
+    /// Create a new engine instance with AST debug mode enabled
+    pub fn new_with_ast_debug() -> Self {
+        Self {
+            ast_debug_mode: true,
+        }
     }
     
     /// Execute JavaScript source code
@@ -44,8 +57,13 @@ impl Engine {
         let ast = parser.parse()?;
         
         // Display the parsed AST for demonstration
-        println!("Successfully parsed JavaScript:");
-        println!("{}", ast);
+        if self.ast_debug_mode {
+            println!("Successfully parsed JavaScript (detailed AST tree):");
+            println!("{}", ast.pretty_print(0));
+        } else {
+            println!("Successfully parsed JavaScript:");
+            println!("{}", ast);
+        }
         
         // TODO: Continue with bytecode generation and execution
         Ok(())
