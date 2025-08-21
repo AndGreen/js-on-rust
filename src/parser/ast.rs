@@ -79,6 +79,11 @@ pub enum Expr {
         operand: Box<Expr>,
         span: Span,
     },
+    PostfixUnary {
+        op: PostfixUnaryOp,
+        operand: Box<Expr>,
+        span: Span,
+    },
     Assignment {
         left: Box<Expr>,
         right: Box<Expr>,
@@ -174,6 +179,13 @@ pub enum UnaryOp {
     Delete,
 }
 
+/// Postfix unary operators
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PostfixUnaryOp {
+    Increment, // ++
+    Decrement, // --
+}
+
 /// Object property
 #[derive(Debug, Clone, PartialEq)]
 pub struct Property {
@@ -215,6 +227,7 @@ impl Expr {
             Expr::Identifier { span, .. } => *span,
             Expr::Binary { span, .. } => *span,
             Expr::Unary { span, .. } => *span,
+            Expr::PostfixUnary { span, .. } => *span,
             Expr::Assignment { span, .. } => *span,
             Expr::Call { span, .. } => *span,
             Expr::Member { span, .. } => *span,
@@ -295,6 +308,9 @@ impl fmt::Display for Expr {
             }
             Expr::Unary { op, operand, .. } => {
                 write!(f, "({}{})", op, operand)
+            }
+            Expr::PostfixUnary { op, operand, .. } => {
+                write!(f, "({}{})", operand, op)
             }
             Expr::Assignment { left, right, .. } => {
                 write!(f, "({} = {})", left, right)
@@ -384,6 +400,16 @@ impl fmt::Display for UnaryOp {
             UnaryOp::TypeOf => "typeof ",
             UnaryOp::Void => "void ",
             UnaryOp::Delete => "delete ",
+        };
+        write!(f, "{}", op_str)
+    }
+}
+
+impl fmt::Display for PostfixUnaryOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let op_str = match self {
+            PostfixUnaryOp::Increment => "++",
+            PostfixUnaryOp::Decrement => "--",
         };
         write!(f, "{}", op_str)
     }
@@ -554,6 +580,12 @@ impl PrettyPrint for Expr {
             }
             Expr::Unary { op, operand, span } => {
                 format!("UnaryExpression {{\n{}op: {:?},\n{}operand: {},\n{}span: {:?}\n{}}}", 
+                        "  ".repeat(indent + 1), op,
+                        "  ".repeat(indent + 1), operand.pretty_print(indent + 1),
+                        "  ".repeat(indent + 1), span, "  ".repeat(indent))
+            }
+            Expr::PostfixUnary { op, operand, span } => {
+                format!("PostfixUnaryExpression {{\n{}op: {:?},\n{}operand: {},\n{}span: {:?}\n{}}}", 
                         "  ".repeat(indent + 1), op,
                         "  ".repeat(indent + 1), operand.pretty_print(indent + 1),
                         "  ".repeat(indent + 1), span, "  ".repeat(indent))

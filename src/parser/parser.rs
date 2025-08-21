@@ -64,6 +64,7 @@ impl Parser {
             TokenKind::Keyword(Keyword::Function) => self.parse_function_declaration(),
             TokenKind::Keyword(Keyword::If) => self.parse_if_statement(),
             TokenKind::Keyword(Keyword::While) => self.parse_while_statement(),
+            TokenKind::Keyword(Keyword::For) => self.parse_for_statement(),
             TokenKind::Keyword(Keyword::Return) => self.parse_return_statement(),
             TokenKind::LeftBrace => self.parse_block_statement(),
             _ => self.parse_expression_statement(),
@@ -198,6 +199,49 @@ impl Parser {
         Ok(Stmt::While { test, body, span: start_span })
     }
     
+    /// Parse for statement: `for (init; test; update) body`
+    fn parse_for_statement(&mut self) -> Result<Stmt> {
+        let start_span = self.peek().span;
+        self.advance(); // consume 'for'
+        
+        self.consume(&TokenKind::LeftParen, "Expected '(' after 'for'")?;
+        
+        // Parse init (can be a variable declaration or expression, or empty)
+        let init = if self.match_token(&TokenKind::Semicolon) {
+            None // Empty init
+        } else if matches!(self.peek().kind, TokenKind::Keyword(Keyword::Var) | TokenKind::Keyword(Keyword::Let)) {
+            // Variable declaration
+            Some(Box::new(self.parse_statement()?))
+        } else {
+            // Expression statement
+            let expr = self.parse_expression()?;
+            self.consume(&TokenKind::Semicolon, "Expected ';' after for loop initializer")?;
+            Some(Box::new(Stmt::Expression(expr)))
+        };
+        
+        // Parse test condition (optional)
+        let test = if self.check(&TokenKind::Semicolon) {
+            None
+        } else {
+            Some(self.parse_expression()?)
+        };
+        self.consume(&TokenKind::Semicolon, "Expected ';' after for loop condition")?;
+        
+        // Parse update expression (optional)
+        let update = if self.check(&TokenKind::RightParen) {
+            None
+        } else {
+            Some(self.parse_expression()?)
+        };
+        
+        self.consume(&TokenKind::RightParen, "Expected ')' after for loop clauses")?;
+        
+        // Parse body
+        let body = Box::new(self.parse_statement()?);
+        
+        Ok(Stmt::For { init, test, update, body, span: start_span })
+    }
+    
     /// Parse return statement: `return expr?;`
     fn parse_return_statement(&mut self) -> Result<Stmt> {
         let start_span = self.peek().span;
@@ -271,6 +315,26 @@ impl Parser {
                 left: Box::new(expr),
                 right: Box::new(right),
                 span: start_span,
+            });
+        }
+        
+        // Handle compound assignment operators
+        if let Some(compound_op) = self.get_compound_assignment_op(&self.peek().kind) {
+            let op_token = self.advance().clone();
+            let right = self.parse_assignment()?; // Right associative
+            
+            // Transform a += b into a = a + b
+            let binary_expr = Expr::Binary {
+                op: compound_op,
+                left: Box::new(expr.clone()),
+                right: Box::new(right),
+                span: op_token.span,
+            };
+            
+            return Ok(Expr::Assignment {
+                left: Box::new(expr),
+                right: Box::new(binary_expr),
+                span: op_token.span,
             });
         }
         
@@ -431,6 +495,28 @@ impl Parser {
                         span: start_span,
                     };
                 }
+                TokenKind::PlusPlus => {
+                    // Postfix increment: expr++
+                    let span = self.peek().span;
+                    self.advance(); // consume '++'
+                    
+                    expr = Expr::PostfixUnary {
+                        op: PostfixUnaryOp::Increment,
+                        operand: Box::new(expr),
+                        span,
+                    };
+                }
+                TokenKind::MinusMinus => {
+                    // Postfix decrement: expr--
+                    let span = self.peek().span;
+                    self.advance(); // consume '--'
+                    
+                    expr = Expr::PostfixUnary {
+                        op: PostfixUnaryOp::Decrement,
+                        operand: Box::new(expr),
+                        span,
+                    };
+                }
                 _ => break,
             }
         }
@@ -474,6 +560,18 @@ impl Parser {
                 format!("Invalid binary operator: {}", token),
                 Span::new(0, 0, 1, 1), // TODO: use actual span
             )),
+        }
+    }
+    
+    /// Get the binary operator for compound assignment
+    fn get_compound_assignment_op(&self, token: &TokenKind) -> Option<BinaryOp> {
+        match token {
+            TokenKind::PlusEqual => Some(BinaryOp::Add),
+            TokenKind::MinusEqual => Some(BinaryOp::Subtract),
+            TokenKind::StarEqual => Some(BinaryOp::Multiply),
+            TokenKind::SlashEqual => Some(BinaryOp::Divide),
+            TokenKind::PercentEqual => Some(BinaryOp::Modulo),
+            _ => None,
         }
     }
     
