@@ -11,12 +11,14 @@ fn main() -> Result<()> {
             repl_mode()
         },
         2 => {
-            // Check if we should debug tokenization or AST
+            // Check if we should debug tokenization, AST, or bytecode
             let filename = &args[1];
             if filename == "--debug-tokens" {
                 debug_tokens_mode()
             } else if filename == "--debug-ast" {
                 debug_ast_mode()
+            } else if filename == "--debug-bytecode" {
+                debug_bytecode_mode()
             } else {
                 execute_file(filename)
             }
@@ -28,8 +30,11 @@ fn main() -> Result<()> {
             } else if &args[1] == "--debug-ast" {
                 let filename = &args[2];
                 debug_ast_for_file(filename)
+            } else if &args[1] == "--debug-bytecode" {
+                let filename = &args[2];
+                debug_bytecode_for_file(filename)
             } else {
-                eprintln!("Usage: {} [file.js] or {} --debug-tokens [file.js] or {} --debug-ast [file.js]", args[0], args[0], args[0]);
+                eprintln!("Usage: {} [file.js] or {} --debug-tokens [file.js] or {} --debug-ast [file.js] or {} --debug-bytecode [file.js]", args[0], args[0], args[0], args[0]);
                 std::process::exit(1);
             }
         },
@@ -37,8 +42,9 @@ fn main() -> Result<()> {
             eprintln!("Usage: {} [file.js]", args[0]);
             eprintln!("  {} - Start REPL", args[0]);
             eprintln!("  {} file.js - Execute JavaScript file", args[0]);
-            eprintln!("  {} --debug-tokens file.js - Show tokens for file", args[0]);
-            eprintln!("  {} --debug-ast file.js - Show detailed AST tree for file", args[0]);
+            eprintln!("  {} --debug-tokens [file.js] - Show tokens for input", args[0]);
+            eprintln!("  {} --debug-ast [file.js] - Show detailed AST tree", args[0]);
+            eprintln!("  {} --debug-bytecode [file.js] - Show compiled bytecode", args[0]);
             std::process::exit(1);
         }
     }
@@ -216,4 +222,46 @@ fn debug_ast_for_file(filename: &str) -> Result<()> {
         Err(e) => eprintln!("Lexer error: {}", e),
     }
     Ok(())
+}
+
+fn debug_bytecode_mode() -> Result<()> {
+    println!("Enter JavaScript code to see bytecode (Ctrl+D to exit):");
+    
+    loop {
+        print!("bytecode> ");
+        use std::io::{self, Write};
+        io::stdout().flush().unwrap();
+        
+        let mut input = String::new();
+        match io::stdin().read_line(&mut input) {
+            Ok(0) => break, // EOF
+            Ok(_) => {
+                let input = input.trim();
+                if input.is_empty() { continue; }
+                
+                let mut engine = Engine::new_with_bytecode_debug();
+                match engine.execute(input) {
+                    Ok(()) => {
+                        // Success - bytecode already printed by engine
+                    },
+                    Err(e) => eprintln!("Error: {}", e),
+                }
+            },
+            Err(e) => {
+                eprintln!("Error reading input: {}", e);
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn debug_bytecode_for_file(filename: &str) -> Result<()> {
+    let source = fs::read_to_string(filename)?;
+    println!("Bytecode for file '{}':", filename);
+    println!("Source: {}", source);
+    println!();
+    
+    let mut engine = Engine::new_with_bytecode_debug();
+    engine.execute(&source)
 }
