@@ -15,7 +15,7 @@ pub mod bytecode;
 pub use error::{Error, Result};
 pub use lexer::{Lexer, Token, TokenKind};
 pub use parser::{Parser, ast};
-pub use bytecode::{BytecodeFunction, Disassembler, ConstantPool, Bytecode};
+pub use bytecode::{BytecodeFunction, Disassembler, ConstantPool, Bytecode, Compiler};
 use ast::PrettyPrint;
 
 /// Engine version
@@ -106,32 +106,13 @@ impl Engine {
         Ok(())
     }
     
-    /// Compile AST to bytecode (stub implementation for Phase 2.1)
-    /// This will be fully implemented in Phase 2.2
-    fn compile_to_bytecode(&self, _ast: &ast::Program, source: &str) -> Result<BytecodeFunction> {
-        // Create a simple stub function that demonstrates the bytecode system
-        let mut function = BytecodeFunction::new_main();
-        function.debug_info.set_source_code(source.to_string());
+    /// Compile AST to bytecode using the real compiler
+    fn compile_to_bytecode(&self, ast: &ast::Program, source: &str) -> Result<BytecodeFunction> {
+        // Create a compiler for the main program
+        let compiler = Compiler::new_main(source);
         
-        // Add some example constants
-        let const_42 = function.constants.add_number(42.0);
-        let const_hello = function.constants.add_string("Hello, Bytecode!".to_string());
-        
-        // Add some example bytecode instructions (stub)
-        function.add_instruction(Bytecode::LdaConst(const_42));
-        function.add_instruction(Bytecode::StaLocal(0));
-        function.add_instruction(Bytecode::LdaConst(const_hello));
-        function.add_instruction(Bytecode::StaLocal(1));
-        function.add_instruction(Bytecode::LdaLocal(0));
-        function.add_instruction(Bytecode::LdaLocal(1));
-        function.add_instruction(Bytecode::Add); // This will concatenate in JS
-        function.add_instruction(Bytecode::Return);
-        
-        // Set basic function properties
-        function.locals_count = 2; // Two local variables
-        function.calculate_stack_size(); // Calculate maximum stack usage
-        
-        Ok(function)
+        // Compile the AST to bytecode
+        compiler.compile(ast)
     }
 }
 

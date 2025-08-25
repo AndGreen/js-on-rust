@@ -22,6 +22,7 @@ pub mod instruction;
 pub mod function;
 pub mod constant_pool;
 pub mod disassembler;
+pub mod compiler;
 
 #[cfg(test)]
 mod tests;
@@ -31,3 +32,4 @@ pub use instruction::*;
 pub use function::*;
 pub use constant_pool::*;
 pub use disassembler::*;
+pub use compiler::*;
