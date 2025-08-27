@@ -10,12 +10,14 @@ pub mod error;
 pub mod lexer;
 pub mod parser;
 pub mod bytecode;
+pub mod vm;
 
 // Re-exports for convenience
 pub use error::{Error, Result};
 pub use lexer::{Lexer, Token, TokenKind};
 pub use parser::{Parser, ast};
 pub use bytecode::{BytecodeFunction, Disassembler, ConstantPool, Bytecode, Compiler};
+pub use vm::{VM, Value};
 use ast::PrettyPrint;
 
 /// Engine version
@@ -63,12 +65,12 @@ impl Engine {
     }
     
     /// Execute JavaScript source code
-    pub fn execute(&mut self, source: &str) -> Result<()> {
-        // TODO: Implement execution pipeline:
+    pub fn execute(&mut self, source: &str) -> Result<Value> {
+        // Execution pipeline:
         // 1. Parse source to AST ✓
-        // 2. Compile AST to bytecode ✓ (stub)
-        // 3. Execute bytecode in interpreter (Phase 2.3)
-        // 4. Profile and JIT compile hot functions (Phase 5)
+        // 2. Compile AST to bytecode ✓ 
+        // 3. Execute bytecode in interpreter ✓
+        // 4. Profile and JIT compile hot functions (Phase 5 - TODO)
         
         // Step 1: Tokenize the source code
         let mut lexer = Lexer::new(source);
@@ -85,7 +87,7 @@ impl Engine {
             println!();
         }
         
-        // Step 3: Compile AST to bytecode (stub implementation)
+        // Step 3: Compile AST to bytecode
         let bytecode_function = self.compile_to_bytecode(&ast, source)?;
         
         // Display the bytecode if requested
@@ -95,15 +97,21 @@ impl Engine {
             println!();
         }
         
-        // Step 4: Execute bytecode (placeholder)
-        println!("Successfully compiled to bytecode:");
-        println!("  Function: {}", bytecode_function.signature());
-        println!("  Instructions: {}", bytecode_function.bytecode.len());
-        println!("  Constants: {}", bytecode_function.constants.len());
-        println!("  Locals: {}", bytecode_function.locals_count);
+        // Step 4: Execute bytecode in VM
+        let mut vm = if self.bytecode_debug_mode {
+            VM::new_with_debug()
+        } else {
+            VM::new()
+        };
         
-        // TODO: Execute in virtual machine (Phase 2.3)
-        Ok(())
+        let result = vm.execute(bytecode_function)?;
+        
+        // Print the result if it's not undefined (for REPL)
+        if !matches!(result, Value::Undefined) {
+            println!("{}", result);
+        }
+        
+        Ok(result)
     }
     
     /// Compile AST to bytecode using the real compiler

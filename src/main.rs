@@ -138,7 +138,7 @@ fn repl_mode() -> Result<()> {
                     _ => {
                         // Execute JavaScript code
                         match engine.execute(input) {
-                            Ok(()) => {
+                            Ok(_result) => {
                                 // Success - result already printed by engine
                             },
                             Err(e) => {
@@ -161,7 +161,8 @@ fn repl_mode() -> Result<()> {
 fn execute_file(filename: &str) -> Result<()> {
     let source = fs::read_to_string(filename)?;
     let mut engine = Engine::new();
-    engine.execute(&source)
+    engine.execute(&source)?;
+    Ok(())
 }
 
 fn debug_ast_mode() -> Result<()> {
@@ -241,7 +242,7 @@ fn debug_bytecode_mode() -> Result<()> {
                 
                 let mut engine = Engine::new_with_bytecode_debug();
                 match engine.execute(input) {
-                    Ok(()) => {
+                    Ok(_result) => {
                         // Success - bytecode already printed by engine
                     },
                     Err(e) => eprintln!("Error: {}", e),
@@ -263,5 +264,6 @@ fn debug_bytecode_for_file(filename: &str) -> Result<()> {
     println!();
     
     let mut engine = Engine::new_with_bytecode_debug();
-    engine.execute(&source)
+    engine.execute(&source)?;
+    Ok(())
 }

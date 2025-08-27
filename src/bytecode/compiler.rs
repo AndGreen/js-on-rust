@@ -259,14 +259,28 @@ impl Compiler {
     /// Compile a program to bytecode
     pub fn compile(mut self, program: &Program) -> Result<BytecodeFunction> {
         // Compile all statements in the program
-        for stmt in &program.statements {
-            self.compile_statement(stmt)?;
+        let num_statements = program.statements.len();
+        for (i, stmt) in program.statements.iter().enumerate() {
+            let is_last = i == num_statements - 1;
+            
+            // For the last statement, if it's an expression, keep its value as return value
+            if is_last && matches!(stmt, Stmt::Expression(_)) {
+                // Compile expression without popping the result
+                if let Stmt::Expression(expr) = stmt {
+                    self.compile_expression(expr)?;
+                    // Don't pop - leave value in accumulator for implicit return
+                }
+            } else {
+                self.compile_statement(stmt)?;
+            }
         }
         
         // Ensure program ends with a return
         if let Some(last_instruction) = self.function.bytecode.last() {
             if !matches!(last_instruction, Bytecode::Return | Bytecode::ReturnUndefined) {
-                self.emit(Bytecode::ReturnUndefined);
+                // If the last statement was an expression, return its value
+                // Otherwise return undefined
+                self.emit(Bytecode::Return);
             }
         } else {
             self.emit(Bytecode::ReturnUndefined);
