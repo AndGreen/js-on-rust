@@ -179,9 +179,9 @@ impl VM {
             
             // === Arithmetic Operations ===
             Bytecode::Add => {
-                let right = self.stack.pop()
+                let left = self.stack.pop()
                     .ok_or_else(|| Error::Runtime { message: "Stack underflow in Add".to_string(), span: None })?;
-                let left = self.accumulator.clone();
+                let right = self.accumulator.clone();
                 
                 // JavaScript addition: string concatenation or numeric addition
                 self.accumulator = match (&left, &right) {
@@ -201,99 +201,112 @@ impl VM {
             }
             
             Bytecode::Sub => {
-                let right = self.stack.pop()
+                let left = self.stack.pop()
                     .ok_or_else(|| Error::Runtime { message: "Stack underflow in Sub".to_string(), span: None })?;
+                let right = self.accumulator.clone();
                 self.accumulator = Value::Number(
-                    self.accumulator.to_number() - right.to_number()
+                    left.to_number() - right.to_number()
                 );
             }
             
             Bytecode::Mul => {
-                let right = self.stack.pop()
+                let left = self.stack.pop()
                     .ok_or_else(|| Error::Runtime { message: "Stack underflow in Mul".to_string(), span: None })?;
+                let right = self.accumulator.clone();
                 self.accumulator = Value::Number(
-                    self.accumulator.to_number() * right.to_number()
+                    left.to_number() * right.to_number()
                 );
             }
             
             Bytecode::Div => {
-                let right = self.stack.pop()
+                let left = self.stack.pop()
                     .ok_or_else(|| Error::Runtime { message: "Stack underflow in Div".to_string(), span: None })?;
+                let right = self.accumulator.clone();
                 self.accumulator = Value::Number(
-                    self.accumulator.to_number() / right.to_number()
+                    left.to_number() / right.to_number()
                 );
             }
             
             Bytecode::Mod => {
-                let right = self.stack.pop()
+                let left = self.stack.pop()
                     .ok_or_else(|| Error::Runtime { message: "Stack underflow in Mod".to_string(), span: None })?;
+                let right = self.accumulator.clone();
                 self.accumulator = Value::Number(
-                    self.accumulator.to_number() % right.to_number()
+                    left.to_number() % right.to_number()
                 );
             }
             
             Bytecode::Pow => {
-                let right = self.stack.pop()
+                let left = self.stack.pop()
                     .ok_or_else(|| Error::Runtime { message: "Stack underflow in Pow".to_string(), span: None })?;
+                let right = self.accumulator.clone();
                 self.accumulator = Value::Number(
-                    self.accumulator.to_number().powf(right.to_number())
+                    left.to_number().powf(right.to_number())
                 );
             }
             
             // === Comparison Operations ===
             Bytecode::Eq => {
-                let right = self.stack.pop()
+                let left = self.stack.pop()
                     .ok_or_else(|| Error::Runtime { message: "Stack underflow in Eq".to_string(), span: None })?;
-                self.accumulator = Value::Boolean(self.accumulator.loose_eq(&right));
+                let right = self.accumulator.clone();
+                self.accumulator = Value::Boolean(left.loose_eq(&right));
             }
             
             Bytecode::Ne => {
-                let right = self.stack.pop()
+                let left = self.stack.pop()
                     .ok_or_else(|| Error::Runtime { message: "Stack underflow in Ne".to_string(), span: None })?;
-                self.accumulator = Value::Boolean(!self.accumulator.loose_eq(&right));
+                let right = self.accumulator.clone();
+                self.accumulator = Value::Boolean(!left.loose_eq(&right));
             }
             
             Bytecode::StrictEq => {
-                let right = self.stack.pop()
+                let left = self.stack.pop()
                     .ok_or_else(|| Error::Runtime { message: "Stack underflow in StrictEq".to_string(), span: None })?;
-                self.accumulator = Value::Boolean(self.accumulator.strict_eq(&right));
+                let right = self.accumulator.clone();
+                self.accumulator = Value::Boolean(left.strict_eq(&right));
             }
             
             Bytecode::StrictNe => {
-                let right = self.stack.pop()
+                let left = self.stack.pop()
                     .ok_or_else(|| Error::Runtime { message: "Stack underflow in StrictNe".to_string(), span: None })?;
-                self.accumulator = Value::Boolean(!self.accumulator.strict_eq(&right));
+                let right = self.accumulator.clone();
+                self.accumulator = Value::Boolean(!left.strict_eq(&right));
             }
             
             Bytecode::Lt => {
-                let right = self.stack.pop()
+                let left = self.stack.pop()
                     .ok_or_else(|| Error::Runtime { message: "Stack underflow in Lt".to_string(), span: None })?;
+                let right = self.accumulator.clone();
                 self.accumulator = Value::Boolean(
-                    self.accumulator.to_number() < right.to_number()
+                    left.to_number() < right.to_number()
                 );
             }
             
             Bytecode::Gt => {
-                let right = self.stack.pop()
+                let left = self.stack.pop()
                     .ok_or_else(|| Error::Runtime { message: "Stack underflow in Gt".to_string(), span: None })?;
+                let right = self.accumulator.clone();
                 self.accumulator = Value::Boolean(
-                    self.accumulator.to_number() > right.to_number()
+                    left.to_number() > right.to_number()
                 );
             }
             
             Bytecode::Le => {
-                let right = self.stack.pop()
+                let left = self.stack.pop()
                     .ok_or_else(|| Error::Runtime { message: "Stack underflow in Le".to_string(), span: None })?;
+                let right = self.accumulator.clone();
                 self.accumulator = Value::Boolean(
-                    self.accumulator.to_number() <= right.to_number()
+                    left.to_number() <= right.to_number()
                 );
             }
             
             Bytecode::Ge => {
-                let right = self.stack.pop()
+                let left = self.stack.pop()
                     .ok_or_else(|| Error::Runtime { message: "Stack underflow in Ge".to_string(), span: None })?;
+                let right = self.accumulator.clone();
                 self.accumulator = Value::Boolean(
-                    self.accumulator.to_number() >= right.to_number()
+                    left.to_number() >= right.to_number()
                 );
             }
             
