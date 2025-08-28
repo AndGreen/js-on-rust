@@ -20,7 +20,7 @@ mod tests {
     
     #[test]
     fn test_vm_creation() {
-        let vm = VM::new();
+        let mut vm = VM::new();
         assert!(vm.execute(crate::bytecode::BytecodeFunction::new_main()).is_ok());
     }
 }

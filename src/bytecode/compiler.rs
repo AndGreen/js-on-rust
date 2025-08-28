@@ -13,7 +13,7 @@
 use std::collections::HashMap;
 use crate::error::{Error, Result, Span};
 use crate::parser::ast::{Program, Stmt, Expr, BinaryOp, UnaryOp, Literal};
-use super::{BytecodeFunction, Bytecode, ConstIndex, LocalIndex, JumpOffset};
+use super::{BytecodeFunction, Bytecode, ConstIndex, LocalIndex};
 
 /// Local variable slot assignment
 #[derive(Debug, Clone)]
@@ -70,12 +70,6 @@ pub struct Compiler {
     scopes: Vec<Scope>,
     /// Counter for next local variable index
     next_local_index: LocalIndex,
-    /// Forward jump patches
-    jump_patches: Vec<JumpPatch>,
-    /// Loop context stack
-    loop_stack: Vec<LoopContext>,
-    /// Label counter for generating unique labels
-    label_counter: u32,
 }
 
 impl Compiler {
@@ -92,9 +86,6 @@ impl Compiler {
                 scope_type: ScopeType::Function,
             }],
             next_local_index: 0,
-            jump_patches: Vec::new(),
-            loop_stack: Vec::new(),
-            label_counter: 0,
         }
     }
     
@@ -127,18 +118,9 @@ impl Compiler {
             function,
             scopes: vec![scope],
             next_local_index: next_local,
-            jump_patches: Vec::new(),
-            loop_stack: Vec::new(),
-            label_counter: 0,
         }
     }
     
-    /// Generate a unique label
-    fn generate_label(&mut self) -> String {
-        let label = format!("L{}", self.label_counter);
-        self.label_counter += 1;
-        label
-    }
     
     /// Enter a new scope
     fn enter_scope(&mut self, scope_type: ScopeType) {
@@ -205,10 +187,6 @@ impl Compiler {
         self.function.add_instruction_with_span(instruction, span);
     }
     
-    /// Get the current instruction offset (for jump targets)
-    fn current_offset(&self) -> usize {
-        self.function.current_offset()
-    }
     
     /// Add a constant to the function's constant pool
     fn add_constant_number(&mut self, value: f64) -> ConstIndex {
@@ -225,36 +203,6 @@ impl Compiler {
         self.function.constants.add_property_name(name)
     }
     
-    /// Patch a jump instruction with the target offset
-    fn patch_jump(&mut self, instruction_offset: usize, target_offset: usize) -> Result<()> {
-        let jump_distance = target_offset as i32 - instruction_offset as i32;
-        
-        // Verify jump distance fits in 16-bit signed integer
-        if jump_distance < i16::MIN as i32 || jump_distance > i16::MAX as i32 {
-            return Err(Error::runtime(
-                format!("Jump distance {} is too large", jump_distance),
-                Some(Span::new(0, 0, 1, 1)) // TODO: Better span handling
-            ));
-        }
-        
-        // Get the current instruction and patch it
-        if let Some(instruction) = self.function.get_instruction(instruction_offset).cloned() {
-            let patched_instruction = match instruction {
-                Bytecode::Jump(_) => Bytecode::Jump(jump_distance as JumpOffset),
-                Bytecode::JumpIfFalse(_) => Bytecode::JumpIfFalse(jump_distance as JumpOffset),
-                Bytecode::JumpIfTrue(_) => Bytecode::JumpIfTrue(jump_distance as JumpOffset),
-                Bytecode::JumpIfNullish(_) => Bytecode::JumpIfNullish(jump_distance as JumpOffset),
-                _ => return Err(Error::runtime(
-                    "Attempting to patch non-jump instruction",
-                    Some(Span::new(0, 0, 1, 1))
-                )),
-            };
-            
-            self.function.patch_instruction(instruction_offset, patched_instruction);
-        }
-        
-        Ok(())
-    }
     
     /// Compile a program to bytecode
     pub fn compile(mut self, program: &Program) -> Result<BytecodeFunction> {
@@ -542,7 +490,6 @@ impl Compiler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::ast::{Program};
     
     #[test]
     fn test_compiler_creation() {
@@ -595,9 +542,9 @@ mod tests {
     fn test_constant_management() {
         let mut compiler = Compiler::new_main("test");
         
-        let num_const = compiler.add_constant_number(42.0);
-        let str_const = compiler.add_constant_string("hello".to_string());
-        let prop_const = compiler.add_constant_property_name("length".to_string());
+        let _num_const = compiler.add_constant_number(42.0);
+        let _str_const = compiler.add_constant_string("hello".to_string());
+        let _prop_const = compiler.add_constant_property_name("length".to_string());
         
         assert_eq!(compiler.function.constants.len(), 3);
         
@@ -605,15 +552,4 @@ mod tests {
         // (We would need to expose constant pool access for this)
     }
     
-    #[test]
-    fn test_label_generation() {
-        let mut compiler = Compiler::new_main("test");
-        
-        let label1 = compiler.generate_label();
-        let label2 = compiler.generate_label();
-        
-        assert_eq!(label1, "L0");
-        assert_eq!(label2, "L1");
-        assert_ne!(label1, label2);
-    }
 }
